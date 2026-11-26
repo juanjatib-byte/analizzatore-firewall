@@ -108,3 +108,22 @@ def test_cli_output_markdown():
     )
     assert proc.returncode == 1
     assert "# Report Analisi Firewall" in proc.stdout
+
+def test_iptables_catena_personalizzata_eredita_condizioni_salto():
+    from analizzatore.controlli import check_f5_servizi_pericolosi
+
+    txt = """
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT DROP [0:0]
+:INTERNI - [0:0]
+-A FORWARD -s 10.0.0.0/8 -j INTERNI
+-A INTERNI -p tcp --dport 3389 -j ACCEPT
+COMMIT
+"""
+    regole, _, _ = parse_iptables(txt)
+    assert len(regole) == 1
+    assert str(regole[0].src_ips[0]) == "10.0.0.0/8"
+    assert check_f5_servizi_pericolosi(regole) == []
+
