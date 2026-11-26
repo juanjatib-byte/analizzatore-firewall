@@ -17,9 +17,25 @@ def _parse_ports(port_str: str) -> list[PortRange]:
     return result
 
 
+def _intersect_nets(parent: list[IPv4Network], child: list[IPv4Network]) -> list[IPv4Network]:
+    """Combina las redes del salto con las de la subcadena (quedándose con la más específica)."""
+    if parent == ANY_IP:
+        return list(child)
+    if child == ANY_IP:
+        return list(parent)
+    res = []
+    for p in parent:
+        for c in child:
+            if c.subnet_of(p):
+                res.append(c)
+            elif p.subnet_of(c):
+                res.append(p)
+    return res
+
+
 def parse_iptables(text: str) -> tuple[list[Rule], dict[str, tuple[str, int]], list[str]]:
     """Lee el texto de iptables-save y devuelve:
-    1. Lista de reglas en orden de evaluación.
+    1. Lista de reglas en orden de evaluación (heredando filtros en saltos a cadenas).
     2. Políticas por defecto {'INPUT': ('DROP', 2), ...}.
     3. Lista de avisos globales.
     """
@@ -32,7 +48,6 @@ def parse_iptables(text: str) -> tuple[list[Rule], dict[str, tuple[str, int]], l
     raw_rules: dict[str, list[tuple[int, str]]] = {"INPUT": [], "FORWARD": [], "OUTPUT": []}
     global_warnings: list[str] = []
 
-    # Paso 1: Leer el archivo línea por línea dentro de *filter
     for line_num, raw_line in enumerate(lines, start=1):
         line = raw_line.strip()
         if not line or line.startswith("#"):
@@ -51,7 +66,6 @@ def parse_iptables(text: str) -> tuple[list[Rule], dict[str, tuple[str, int]], l
             in_filter = False
             continue
 
-        # Políticas por defecto o declaración de cadenas (:INPUT ACCEPT [0:0])
         if line.startswith(":"):
             parts = line[1:].split()
             if len(parts) >= 2:
@@ -63,7 +77,6 @@ def parse_iptables(text: str) -> tuple[list[Rule], dict[str, tuple[str, int]], l
                     default_policies[chain_name] = (policy, line_num)
             continue
 
-        # Reglas (-A CADENA ...)
         if line.startswith("-A "):
             parts = line.split(maxsplit=2)
             if len(parts) >= 2:
@@ -73,10 +86,10 @@ def parse_iptables(text: str) -> tuple[list[Rule], dict[str, tuple[str, int]], l
     if not has_filter_table:
         raise ValueError("Il file non contiene una tabella *filter valida di iptables-save")
 
-    # Paso 2: Convertir cada línea de regla en un objeto Rule
-    def build_rule(line_num: int, line: str, target_chain: str, idx: int) -> Rule | str:
+    def build_rule(line_num: int, line: str, target_chain: str, idx: int) -> tuple[Rule, bool]:
+        """Devuelve (Rule con las condiciones de esta línea, es_salto_a_cadena)."""
         tokens = shlex.split(line)
-        i = 2  # Saltamos '-A' y el nombre de la cadena
+        i = 2
         src_ips = list(ANY_IP)
         dst_ips = list(ANY_IP)
         protocol = "all"
@@ -142,12 +155,9 @@ def parse_iptables(text: str) -> tuple[list[Rule], dict[str, tuple[str, int]], l
             negated = False
 
         global_warnings.extend(warnings)
+        is_jump = action in custom_chains
 
-        # Si salta a una cadena personalizada, devolvemos su nombre para expandirla
-        if action in custom_chains:
-            return f"JUMP:{action}"
-
-        return Rule(
+        rule = Rule(
             id=f"{target_chain}_{idx}",
             line_num=line_num,
             chain=target_chain,
@@ -163,25 +173,66 @@ def parse_iptables(text: str) -> tuple[list[Rule], dict[str, tuple[str, int]], l
             negate_dst=negate_dst,
             warnings=warnings,
         )
+        return rule, is_jump
 
-    # Paso 3: Expandir reglas en orden para INPUT, FORWARD y OUTPUT
+    def combine_jump_conditions(parent: Rule, child: Rule, new_id: str) -> Rule | None:
+        """Hereda los filtros de la regla que hace el salto hacia la regla interna."""
+        src = _intersect_nets(parent.src_ips, child.src_ips)
+        dst = _intersect_nets(parent.dst_ips, child.dst_ips)
+        if not src or not dst:
+            return None
+
+        if parent.protocol != "all" and child.protocol != "all" and parent.protocol != child.protocol:
+            return None
+        proto = child.protocol if parent.protocol == "all" else parent.protocol
+
+        if parent.in_iface != "any" and child.in_iface != "any" and parent.in_iface != child.in_iface:
+            return None
+        in_if = child.in_iface if parent.in_iface == "any" else parent.in_iface
+
+        if parent.out_iface != "any" and child.out_iface != "any" and parent.out_iface != child.out_iface:
+            return None
+        out_if = child.out_iface if parent.out_iface == "any" else parent.out_iface
+
+        ports = child.dst_ports if parent.dst_ports == ANY_PORT else parent.dst_ports
+
+        return Rule(
+            id=new_id,
+            line_num=child.line_num,
+            chain=parent.chain,
+            action=child.action,
+            src_ips=src,
+            dst_ips=dst,
+            protocol=proto,
+            dst_ports=ports,
+            in_iface=in_if,
+            out_iface=out_if,
+            is_established=parent.is_established or child.is_established,
+            negate_src=parent.negate_src or child.negate_src,
+            negate_dst=parent.negate_dst or child.negate_dst,
+            warnings=list(parent.warnings) + list(child.warnings),
+        )
+
     final_rules: list[Rule] = []
     counter = 1
 
-    def expand_chain(chain_to_read: str, main_chain: str, visited: set[str]):
+    def expand_chain(chain_to_read: str, main_chain: str, inherited: Rule | None, visited: set[str]):
         nonlocal counter
         if chain_to_read in visited:
             return
         for l_num, l_text in raw_rules.get(chain_to_read, []):
-            parsed = build_rule(l_num, l_text, main_chain, counter)
-            if isinstance(parsed, str) and parsed.startswith("JUMP:"):
-                sub_chain = parsed.split(":", 1)[1]
-                expand_chain(sub_chain, main_chain, visited | {chain_to_read})
-            elif isinstance(parsed, Rule):
-                final_rules.append(parsed)
+            parsed, is_jump = build_rule(l_num, l_text, main_chain, counter)
+            effective = combine_jump_conditions(inherited, parsed, f"{main_chain}_{counter}") if inherited else parsed
+            if effective is None:
+                continue
+
+            if is_jump:
+                expand_chain(parsed.action, main_chain, effective, visited | {chain_to_read})
+            else:
+                final_rules.append(effective)
                 counter += 1
 
     for main_c in ("INPUT", "FORWARD", "OUTPUT"):
-        expand_chain(main_c, main_c, set())
+        expand_chain(main_c, main_c, None, set())
 
     return final_rules, default_policies, global_warnings
