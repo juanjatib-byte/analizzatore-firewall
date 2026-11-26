@@ -1,0 +1,35 @@
+{
+  "problemi": [
+    {
+      "codice": "F1",
+      "gravita": "media",
+      "riga": 6,
+      "causato_da": [
+        5
+      ],
+      "descrizione": "Non scatta mai: coperta dalla regola a riga 5"
+    },
+    {
+      "codice": "F4",
+      "gravita": "alta",
+      "riga": 7,
+      "causato_da": [],
+      "descrizione": "Regola troppo permissiva: espone un'intera rete interna verso una rete esterna"
+    },
+    {
+      "codice": "F7",
+      "gravita": "alta",
+      "riga": 3,
+      "causato_da": [],
+      "descrizione": "Politica di default ACCEPT su FORWARD senza regola finale di blocco"
+    },
+    {
+      "codice": "F7",
+      "gravita": "alta",
+      "riga": 4,
+      "causato_da": [],
+      "descrizione": "Politica di default ACCEPT su OUTPUT senza regola finale di blocco"
+    }
+  ],
+  "avvisi": []
+}

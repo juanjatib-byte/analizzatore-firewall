@@ -1,0 +1,6 @@
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT DROP [0:0]
+-A FORWARD -i eth0 -o eth1 -j ACCEPT
+COMMIT

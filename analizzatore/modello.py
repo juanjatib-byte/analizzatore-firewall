@@ -3,7 +3,7 @@
 # Carga utilidades internas de Python para crear plantillas y entender redes IP.
 # ==============================================================================
 from dataclasses import dataclass, field
-from ipaddress import IPv4Network, ip_network
+from ipaddress import IPv4Network
 
 
 # ==============================================================================
@@ -31,7 +31,7 @@ class PortRange:
 # BLOQUE 3: COMODINES POR DEFECTO
 # Valores que significan "cualquier IP" y "cualquier puerto".
 # ==============================================================================
-ANY_IP = [ip_network("0.0.0.0/0")]
+ANY_IP = [IPv4Network("0.0.0.0/0")]
 ANY_PORT = [PortRange(0, 65535)]
 
 
@@ -54,7 +54,11 @@ class Rule:
     dst_ports: list[PortRange] = field(default_factory=lambda: list(ANY_PORT))     # Puertos de destino
     in_iface: str = "any"                                                          # Tarjeta de red de entrada
     out_iface: str = "any"                                                         # Tarjeta de red de salida
-    is_established: bool = False                                                   # True si es solo para conexiones ya abiertas
+    is_established: bool = False      
+    negate_src: bool = False                                                       # True si lleva ! -s
+    negate_dst: bool = False                                                       # True si lleva ! -d
+    warnings: list[str] = field(default_factory=list)                              # Avisos de opciones no soportadas
+    
 
     # --- Comparador: comprueba paso a paso si esta regla abarca por completo a 'other' ---
     def covers(self, other: "Rule") -> bool:
@@ -62,6 +66,8 @@ class Rule:
 
         # Paso 1: Si esta regla es solo para conexiones abiertas y la otra no, no la cubre
         if self.is_established and not other.is_established:
+            return False
+        if self.negate_src or other.negate_src or self.negate_dst or other.negate_dst:
             return False
 
         # Paso 2: Si no coinciden la dirección (chain) o las tarjetas de red, no la cubre
@@ -97,3 +103,15 @@ class Rule:
 
         # Si superó todos los pasos, esta regla cubre totalmente a la otra
         return True
+
+# ==============================================================================
+# BLOQUE 5: FICHA DE UN PROBLEMA ENCONTRADO (F1 - F7)
+# ==============================================================================
+@dataclass
+class Problem:
+    code: str                                      # "F1" ... "F7"
+    severity: str                                  # "alta" | "media" | "bassa"
+    line_num: int                                  # Línea en el archivo original
+    description: str                               # Explicación de una línea
+    caused_by: list[int] = field(default_factory=list)  # Líneas de las reglas causantes (F1, F2, F3)
+

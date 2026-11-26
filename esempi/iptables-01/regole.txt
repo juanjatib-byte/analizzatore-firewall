@@ -1,0 +1,8 @@
+*filter
+:INPUT DROP [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+-A FORWARD -s 10.0.0.0/8 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 10.1.2.3 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 0.0.0.0/0 -d 10.0.0.0/8 -j ACCEPT
+COMMIT

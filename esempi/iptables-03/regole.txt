@@ -1,0 +1,9 @@
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT DROP [0:0]
+:SERVIZI_WEB - [0:0]
+-A FORWARD -j SERVIZI_WEB
+-A FORWARD -s 10.1.5.5 -p tcp --dport 80 -j ACCEPT
+-A SERVIZI_WEB -s 10.0.0.0/8 -p tcp --dport 80 -j ACCEPT
+COMMIT

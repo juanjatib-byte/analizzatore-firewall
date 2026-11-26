@@ -1,0 +1,6 @@
+non_fidate:
+  interfacce: [eth0]
+  reti: [0.0.0.0/0]
+fidate:
+  interfacce: [eth1]
+  reti: [192.168.0.0/16]

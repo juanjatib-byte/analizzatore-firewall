@@ -10,12 +10,15 @@ def is_protocol_covered(small: str, large: str) -> bool:
     return False
 
 
-# 2. Comprueba si un rango de puertos (small) cabe dentro de otro (large)
-def are_ports_covered(small: PortRange, large: PortRange) -> bool:
-    # El inicio grande debe ser menor/igual al pequeño Y el fin pequeño menor/igual al grande
-    if large.start <= small.start and small.end <= large.end:
-        return True
-    return False
+# 2. Comprueba si TODOS los rangos de puertos (small_list) caben dentro de (large_list)
+def are_ports_covered(small_list: list[PortRange], large_list: list[PortRange]) -> bool:
+    for small in small_list:
+        # Buscamos si este rango pequeño cabe en al menos un rango grande de arriba
+        cubierto = any(large.contains(small) for large in large_list)
+        if not cubierto:
+            return False
+    return True
+
 
 
 # 3. Comprueba si una regla completa (rule) queda totalmente tapada por una anterior (previous)

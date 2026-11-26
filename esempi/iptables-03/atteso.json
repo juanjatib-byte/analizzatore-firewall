@@ -1,0 +1,14 @@
+{
+  "problemi": [
+    {
+      "codice": "F1",
+      "gravita": "media",
+      "riga": 7,
+      "causato_da": [
+        8
+      ],
+      "descrizione": "Non scatta mai: coperta dalla regola a riga 8"
+    }
+  ],
+  "avvisi": []
+}
