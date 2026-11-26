@@ -10,6 +10,25 @@ REDES_INTERNAS = [
     IPv4Network("192.168.0.0/16"),
 ]
 
+# Puertos sensibles de administración, sin cifrar o bases de datos (para F5)
+PUERTOS_PELIGROSOS = {
+    21: "FTP",
+    22: "SSH",
+    23: "Telnet",
+    139: "NetBIOS",
+    161: "SNMP",
+    162: "SNMP-Trap",
+    445: "SMB",
+    1433: "MSSQL",
+    3306: "MySQL",
+    3389: "RDP",
+    5432: "PostgreSQL",
+    5900: "VNC",
+    6379: "Redis",
+    8080: "HTTP-Mgmt",
+    8443: "HTTPS-Mgmt",
+    27017: "MongoDB",
+}
 
 # ==============================================================================
 # F1: Regla oscurata (tapada por una regla anterior con la MISMA acción)
@@ -28,6 +47,49 @@ def check_f1_oscurate(rules: list[Rule]) -> list[Problem]:
                 ))
                 break
     return problemi
+
+# ==============================================================================
+# F2: Regla en conflicto (cubierta por una regla anterior con la acción OPUESTA)
+# ==============================================================================
+def check_f2_conflitto(rules: list[Rule]) -> list[Problem]:
+    problemi = []
+    for i, rule in enumerate(rules):
+        for prev in rules[:i]:
+            if prev.action != rule.action and is_rule_covered(rule, prev):
+                problemi.append(Problem(
+                    code="F2",
+                    severity="alta",
+                    line_num=rule.line_num,
+                    description=f"In conflitto con la regola a riga {prev.line_num} (azione opposta)",
+                    caused_by=[prev.line_num],
+                ))
+                break
+    return problemi
+
+
+# ==============================================================================
+# F3: Regla redundante (cubierta por una posterior con la misma acción sin bloqueo en medio)
+# ==============================================================================
+def check_f3_ridondante(rules: list[Rule]) -> list[Problem]:
+    problemi = []
+    for i, rule in enumerate(rules):
+        for j in range(i + 1, len(rules)):
+            next_rule = rules[j]
+            # Si hay una regla en medio con acción opuesta que cubre este tráfico, paramos
+            if next_rule.action != rule.action and is_rule_covered(rule, next_rule):
+                break
+            # Si una regla posterior tiene la misma acción y cubre toda esta regla, esta sobra
+            if next_rule.action == rule.action and is_rule_covered(rule, next_rule):
+                problemi.append(Problem(
+                    code="F3",
+                    severity="bassa",
+                    line_num=rule.line_num,
+                    description=f"Regola ridondante: coperta dalla regola successiva a riga {next_rule.line_num}",
+                    caused_by=[next_rule.line_num],
+                ))
+                break
+    return problemi
+
 
 
 # ==============================================================================
@@ -79,6 +141,51 @@ def check_f4_permissive(
                 severity="alta",
                 line_num=rule.line_num,
                 description="Regola troppo permissiva: espone un'intera rete interna verso una rete esterna",
+            ))
+
+    return problemi
+
+# ==============================================================================
+# F5: Servicio peligroso expuesto desde una zona no fiable
+# ==============================================================================
+def check_f5_servizi_pericolosi(
+    rules: list[Rule],
+    untrusted_nets: list[IPv4Network] | None = None,
+    untrusted_ifaces: list[str] | None = None,
+) -> list[Problem]:
+    esterna_net = untrusted_nets if untrusted_nets else ANY_IP
+    esterna_if = {i.lower() for i in (untrusted_ifaces or ["wan", "wan1", "wan2"])}
+    problemi = []
+
+    for rule in rules:
+        if rule.action != "ACCEPT":
+            continue
+
+        # Comprobamos si el tráfico viene de una red o interfaz no fiable
+        da_zona_non_fidata = (
+            any(net in rule.src_ips for net in esterna_net)
+            or (rule.in_iface.lower() in esterna_if)
+        )
+        if not da_zona_non_fidata:
+            continue
+
+        # Buscamos si algún puerto peligroso cae dentro de los puertos permitidos por la regla
+        # (Ignoramos reglas de puerto 'all' 0-65535 si ya fueron marcadas como F4 demasiado permisivas,
+        # o solo reportamos si apunta a un rango específico o incluye puertos peligrosos)
+        esposti = []
+        for porta, nome in PUERTOS_PELIGROSOS.items():
+            for rng in rule.dst_ports:
+                if rng.start <= porta <= rng.end and not (rng.start == 0 and rng.end == 65535):
+                    esposti.append(f"{nome} ({porta})")
+                    break
+
+        if esposti:
+            servizi_str = ", ".join(esposti[:4])
+            problemi.append(Problem(
+                code="F5",
+                severity="alta",
+                line_num=rule.line_num,
+                description=f"Servizio pericoloso esposto da zona non fidata: {servizi_str}",
             ))
 
     return problemi

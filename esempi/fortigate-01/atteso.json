@@ -1,0 +1,21 @@
+{
+  "problemi": [
+    {
+      "codice": "F1",
+      "gravita": "media",
+      "riga": 31,
+      "causato_da": [
+        23
+      ],
+      "descrizione": "Non scatta mai: coperta dalla regola a riga 23"
+    },
+    {
+      "codice": "F6",
+      "gravita": "bassa",
+      "riga": 8,
+      "causato_da": [],
+      "descrizione": "Oggetto FortiGate 'Vecchio_Server' (address) definito ma mai utilizzato"
+    }
+  ],
+  "avvisi": []
+}

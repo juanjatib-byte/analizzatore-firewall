@@ -1,0 +1,28 @@
+{
+  "problemi": [
+    {
+      "codice": "F2",
+      "gravita": "alta",
+      "riga": 15,
+      "causato_da": [
+        7
+      ],
+      "descrizione": "In conflitto con la regola a riga 7 (azione opposta)"
+    },
+    {
+      "codice": "F5",
+      "gravita": "alta",
+      "riga": 15,
+      "causato_da": [],
+      "descrizione": "Servizio pericoloso esposto da zona non fidata: SSH (22)"
+    },
+    {
+      "codice": "F5",
+      "gravita": "alta",
+      "riga": 23,
+      "causato_da": [],
+      "descrizione": "Servizio pericoloso esposto da zona non fidata: RDP (3389)"
+    }
+  ],
+  "avvisi": []
+}

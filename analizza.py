@@ -2,7 +2,7 @@ import argparse
 import sys
 
 from analizzatore import controlli, report
-from analizzatore.lettori import iptables
+from analizzatore.lettori import fortigate, iptables
 from analizzatore.zone import ZoneConfig, load_zones
 
 
@@ -23,14 +23,19 @@ def main() -> int:
             with open(args.zone, encoding="utf-8") as zf:
                 zone = load_zones(zf.read())
 
+        politiche = {}
+        oggetti_forti = []
+
         if args.formato == "iptables":
             regole, politiche, avvisi = iptables.parse_iptables(testo)
         else:
-            raise ValueError("Formato fortigate non ancora implementato")
+            regole, oggetti_forti, avvisi = fortigate.parse_fortigate(testo)
 
-        # Ejecutamos los controles (Entrega 1: F1, F4, F7)
+        # Ejecutamos los controles correspondientes
         problemi = []
         problemi.extend(controlli.check_f1_oscurate(regole))
+        problemi.extend(controlli.check_f2_conflitto(regole))
+        problemi.extend(controlli.check_f3_ridondante(regole))
         problemi.extend(
             controlli.check_f4_permissive(
                 regole,
@@ -40,8 +45,17 @@ def main() -> int:
                 zone.trusted_ifaces,
             )
         )
-
-        problemi.extend(controlli.check_f7_default_open(regole, politiche))
+        problemi.extend(
+            controlli.check_f5_servizi_pericolosi(
+                regole,
+                zone.untrusted_nets,
+                zone.untrusted_ifaces,
+            )
+        )
+        if args.formato == "fortigate":
+            problemi.extend(fortigate.check_f6_inutilizzati(oggetti_forti))
+        if args.formato == "iptables":
+            problemi.extend(controlli.check_f7_default_open(regole, politiche))
 
         # Imprimimos el reporte
         if args.output == "json":

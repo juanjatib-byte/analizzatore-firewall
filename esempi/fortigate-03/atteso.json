@@ -1,0 +1,26 @@
+{
+  "problemi": [
+    {
+      "codice": "F4",
+      "gravita": "alta",
+      "riga": 12,
+      "causato_da": [],
+      "descrizione": "Regola troppo permissiva: permette qualsiasi traffico (any -> any : any)"
+    },
+    {
+      "codice": "F6",
+      "gravita": "bassa",
+      "riga": 2,
+      "causato_da": [],
+      "descrizione": "Oggetto FortiGate 'CUSTOM_DB' (service) definito ma mai utilizzato"
+    },
+    {
+      "codice": "F6",
+      "gravita": "bassa",
+      "riga": 7,
+      "causato_da": [],
+      "descrizione": "Oggetto FortiGate 'GRUPPO_INUTILE' (service_group) definito ma mai utilizzato"
+    }
+  ],
+  "avvisi": []
+}
