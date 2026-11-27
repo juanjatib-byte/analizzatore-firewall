@@ -1,12 +1,4 @@
 {
-  "problemi": [
-    {
-      "codice": "F4",
-      "gravita": "alta",
-      "riga": 5,
-      "causato_da": [],
-      "descrizione": "Regola troppo permissiva: permette qualsiasi traffico (any -> any : any)"
-    }
-  ],
+  "problemi": [],
   "avvisi": []
 }

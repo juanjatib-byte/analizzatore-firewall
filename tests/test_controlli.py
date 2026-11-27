@@ -100,3 +100,12 @@ def test_f5_detecta_rdp_expuesto_desde_internet():
 def test_f5_no_salta_si_origen_es_red_interna():
     r = Rule(id="1", line_num=6, chain="FORWARD", action="ACCEPT", src_ips=[Rete("10.0.0.0/8")], protocol="tcp", dst_ports=[PortRange(3389, 3389)])
     assert check_f5_servizi_pericolosi([r]) == []
+
+def test_f4_ignora_loopback():
+    r = Rule(id="1", line_num=5, chain="INPUT", action="ACCEPT", in_iface="lo")
+    assert check_f4_permissive([r]) == []
+
+
+def test_f4_ignora_established_related():
+    r = Rule(id="1", line_num=6, chain="INPUT", action="ACCEPT", is_established=True)
+    assert check_f4_permissive([r]) == []

@@ -111,6 +111,8 @@ def check_f4_permissive(
     for rule in rules:
         if rule.action != "ACCEPT":
             continue
+        if rule.in_iface == "lo" or rule.out_iface == "lo" or rule.is_established:
+            continue
 
         todo_puerto = rule.protocol == "all" and rule.dst_ports == ANY_PORT
         origen_todo = rule.src_ips == ANY_IP
