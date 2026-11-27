@@ -32,6 +32,21 @@ def _intersect_nets(parent: list[IPv4Network], child: list[IPv4Network]) -> list
                 res.append(p)
     return res
 
+def _intersect_ports(parent: list[PortRange], child: list[PortRange]) -> list[PortRange]:
+    """Calcula la intersección real entre los puertos del salto y los de la subcadena."""
+    if parent == ANY_PORT:
+        return list(child)
+    if child == ANY_PORT:
+        return list(parent)
+    res: list[PortRange] = []
+    for p in parent:
+        for c in child:
+            lo = max(p.start, c.start)
+            hi = min(p.end, c.end)
+            if lo <= hi:
+                res.append(PortRange(lo, hi))
+    return res
+
 
 def parse_iptables(text: str) -> tuple[list[Rule], dict[str, tuple[str, int]], list[str]]:
     """Lee el texto de iptables-save y devuelve:
@@ -194,7 +209,10 @@ def parse_iptables(text: str) -> tuple[list[Rule], dict[str, tuple[str, int]], l
             return None
         out_if = child.out_iface if parent.out_iface == "any" else parent.out_iface
 
-        ports = child.dst_ports if parent.dst_ports == ANY_PORT else parent.dst_ports
+        ports = _intersect_ports(parent.dst_ports, child.dst_ports)
+        if not ports:
+            return None
+
 
         return Rule(
             id=new_id,

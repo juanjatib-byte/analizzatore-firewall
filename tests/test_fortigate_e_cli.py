@@ -127,3 +127,31 @@ COMMIT
     assert str(regole[0].src_ips[0]) == "10.0.0.0/8"
     assert check_f5_servizi_pericolosi(regole) == []
 
+def test_iptables_catena_personalizzata_interseca_porte_salto():
+    from analizzatore.controlli import check_f5_servizi_pericolosi
+
+    txt = """
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT DROP [0:0]
+:ADMIN - [0:0]
+-A FORWARD -i eth0 -p tcp --dport 1:1024 -j ADMIN
+-A ADMIN -p tcp --dport 22 -j ACCEPT
+COMMIT
+"""
+    regole, _, _ = parse_iptables(txt)
+    assert len(regole) == 1
+    
+    r = regole[0]
+    assert str(r.src_ips[0]) == "0.0.0.0/0"
+    assert len(r.dst_ports) == 1
+    assert r.dst_ports[0].start == 22
+    assert r.dst_ports[0].end == 22
+
+    problemi = check_f5_servizi_pericolosi(regole)
+    assert len(problemi) == 1
+    p = problemi[0]
+    assert "SSH (22)" in p.description
+    assert "FTP" not in p.description
+    assert "Telnet" not in p.description
